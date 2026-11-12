@@ -2,6 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f0f17">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Block Blast</title>
 <style>
@@ -282,13 +286,14 @@
   @keyframes holdPulse {
     0%, 100% {
       filter: drop-shadow(0 18px 30px rgba(0,0,0,0.55)) brightness(1);
-      transform: scale(1);
     }
     50% {
       filter: drop-shadow(0 18px 34px rgba(139,124,247,0.45)) brightness(1.12);
-      transform: scale(1.05);
     }
   }
+  /* pulse the inner grid, never #ghost itself: #ghost's transform is its position */
+  #ghost.holding .piece-grid { animation: holdScale 0.95s ease-in-out infinite; }
+  @keyframes holdScale { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
   #ghost .piece-grid { gap: 3px; }
   #ghost .piece-cell { border-radius: 4px; }
 
@@ -413,6 +418,37 @@
   .localbar .lp b { display: block; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .localbar .lp.turn { border-color: #a78bfa; background: #25203d; }
   .localbar .lp.out { opacity: .45; }
+  html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+  #ghost { left: 0; top: 0; will-change: transform; backface-visibility: hidden; }
+  #mpClock { font-weight: 700; font-size: .82rem; color: #fbbf24; min-height: 0; }
+  #mpClock.warn { color: #f87171; animation: clkpulse .6s ease-in-out infinite alternate; }
+  @keyframes clkpulse { from { opacity: 1; } to { opacity: .45; } }
+  #variantRow .seg { margin-bottom: 8px; }
+  #variantHint { font-size: .78rem !important; margin: 0 0 10px !important; }
+  #liveList { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; max-height: 38vh; overflow: auto; color: var(--muted); font-size: .85rem; }
+  #liveList button { text-align: left; }
+  #watchStatus { min-height: 1.2em; margin: 8px 0 !important; font-size: .82rem; color: #fbbf24; }
+  #specView { position: fixed; inset: 0; z-index: 90; background: var(--bg, #0f0f17); display: none; overflow: auto; padding: 12px 14px 24px; color: var(--text); }
+  #specView.show { display: block; }
+  .sphead { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: .85rem; }
+  .sphead b { flex: 1; font-size: 1rem; }
+  #spClock { color: #fbbf24; font-weight: 700; }
+  #spClock.warn { color: #f87171; }
+  #spBoards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-width: 520px; margin: 0 auto; }
+  #spBoards.one { grid-template-columns: minmax(0, 360px); justify-content: center; }
+  .spcard { min-width: 0; }
+  .sph { display: flex; justify-content: space-between; gap: 6px; font-size: .8rem; margin-bottom: 4px; }
+  .sph b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sph span { color: #fbbf24; font-weight: 700; }
+  .sbox { position: relative; width: 100%; aspect-ratio: 1; padding: 5px; background: var(--board-bg); border-radius: 10px; }
+  .sbox .rgh i { margin: 0; border-radius: 1px; }
+  .otray { display: flex; gap: 6px; margin-top: 8px; min-height: 30px; align-items: center; font-size: .72rem; color: var(--muted); }
+  .otray .ot { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 6px; background: #1a1a26; transition: transform .12s, opacity .2s; }
+  .otray .ot.used { opacity: .15; }
+  .otray .ot.held { transform: translateY(-5px) scale(1.12); box-shadow: 0 0 0 2px #a78bfa; }
+  .otray .og { display: grid; gap: 1px; }
+  .otray .og i { width: 5px; height: 5px; border-radius: 1px; }
+  #spStatus { text-align: center; margin: 14px 0; color: #fbbf24; font-size: .9rem; min-height: 1.3em; }
 </style>
 </head>
 <body>
@@ -443,6 +479,7 @@
       </div>
     </div>
     <div class="icon-btns">
+      <button class="icon-btn" id="btnFull" title="Full screen">⛶</button>
       <button class="icon-btn" id="btnMusic" title="Music">🎵</button>
       <button class="icon-btn" id="btnSound" title="Sound">🔊</button>
     </div>
@@ -450,7 +487,7 @@
 </div>
 
 <div class="mpbar" id="mpBar">
-  <div style="flex:1;min-width:0"><div id="mpInfo"></div><div id="oppTray"></div></div>
+  <div style="flex:1;min-width:0"><div id="mpInfo"></div><div id="mpClock"></div><div id="oppTray"></div></div>
   <div class="mini" id="miniBox"><div class="mgw" id="miniWrap"><div class="mg" id="miniGrid"></div></div></div>
   <button class="icon-btn" id="btnMic" title="Voice chat">🎤</button>
   <button class="icon-btn" id="btnChat" title="Chat">💬</button>
@@ -534,13 +571,50 @@
     <h2>Play Online</h2>
     <input id="nameInput" maxlength="16" placeholder="Your name" autocomplete="off">
     <div class="seg"><button id="segV" class="on">1v1</button><button id="segC">Co-op</button></div>
+    <div id="variantRow">
+      <div class="seg"><button id="vgN" class="on">Normal</button><button id="vgT">Timed</button></div>
+      <div class="seg" id="durRow" style="display:none"><button data-d="60">1 min</button><button data-d="120" class="on">2 min</button><button data-d="180">3 min</button></div>
+      <p id="variantHint">First to run out of moves loses. Keep placing pieces: idle for 30s and you lose!</p>
+    </div>
     <button class="primary" id="btnQuick" style="width:100%">Quick Match</button>
     <button id="btnCreate" style="width:100%;margin-top:8px">Create Private Room</button>
     <div class="lrow"><input id="codeInput" maxlength="8" placeholder="ROOM CODE" autocomplete="off"><button id="btnJoin">Join</button></div>
     <p id="lobbyStatus"></p>
     <button class="danger" id="btnCancel" style="width:100%;display:none;margin-bottom:8px">Cancel</button>
+    <button id="btnWatch" style="width:100%;margin-bottom:8px">👁 Spectate a match</button>
     <button class="ghost" id="btnLobbyClose" style="width:100%">Close</button>
   </div>
+</div>
+<div class="overlay" id="watchOverlay">
+  <div class="modal">
+    <h2>Spectate</h2>
+    <div id="liveList"></div>
+    <div class="lrow"><input id="watchCode" maxlength="8" placeholder="ROOM CODE" autocomplete="off"><button id="btnWatchCode">Watch</button></div>
+    <p id="watchStatus"></p>
+    <button class="ghost" id="btnWatchRefresh" style="width:100%;margin-bottom:8px">Refresh list</button>
+    <button class="ghost" id="btnWatchClose" style="width:100%">Close</button>
+  </div>
+</div>
+<div class="overlay" id="leaveOverlay">
+  <div class="modal">
+    <h2>Leave this match?</h2>
+    <p id="leaveText"></p>
+    <div class="modal-btns"><button id="btnLeaveStay">Stay</button><button class="danger" id="btnLeaveYes">Leave</button></div>
+  </div>
+</div>
+<div class="overlay" id="rejoinBox">
+  <div class="modal">
+    <h2 id="rjTitle"></h2>
+    <p id="rjText"></p>
+    <button class="primary" id="btnRejoin" style="width:100%">Rejoin match</button>
+    <button class="ghost" id="btnRejoinLeave" style="width:100%;margin-top:8px">Leave for good</button>
+  </div>
+</div>
+<div id="specView">
+  <div class="sphead"><b id="spTitle"></b><span id="spClock"></span><span id="spWatch"></span></div>
+  <div id="spBoards"></div>
+  <div id="spStatus"></div>
+  <button class="danger" id="btnSpecStop" style="width:100%;max-width:360px;display:block;margin:0 auto">Stop watching</button>
 </div>
 <div id="chatBox">
   <div id="chatLog"></div>
@@ -617,6 +691,7 @@
   let ghostX = 0, ghostY = 0;
   let targetX = 0, targetY = 0;
   let animFrame = null;
+  let boardRect = null, previewKey = '';
   let prevFingerX = 0, prevFingerY = 0;
   let velX = 0, velY = 0;
   let lastMoveT = 0;
@@ -913,6 +988,19 @@
     return emptyCells() === SIZE * SIZE;
   }
 
+  // Snug fit: tight against walls and other blocks = bonus points (the server uses the same rule).
+  function snugBonus(shape, row, col) {
+    const cells = new Set(shape.map(([dr, dc]) => (row + dr) * 16 + (col + dc)));
+    let edges = 0, touch = 0;
+    for (const [dr, dc] of shape) for (const [nr, nc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const rr = row + dr + nr, cc = col + dc + nc;
+      if (cells.has(rr * 16 + cc)) continue;
+      edges++;
+      if (rr < 0 || rr >= SIZE || cc < 0 || cc >= SIZE || board[rr][cc]) touch++;
+    }
+    return touch >= 3 && touch / edges >= 0.6 ? touch * 3 : 0;
+  }
+
   function computeClears(shape, row, col) {
     const filled = Array.from({length: SIZE}, () => Array(SIZE).fill(false));
     for (let r = 0; r < SIZE; r++)
@@ -1164,6 +1252,7 @@
 
     // Give extra probability to shapes that can finish a line or improve
     // near-complete lines on this exact board. Keep some variety in the pool.
+    const clearers = [];
     for (let i = 0; i < SHAPES.length; i++) {
       const fits = countFits(SHAPES[i]);
       let bestClear = 0;
@@ -1179,7 +1268,7 @@
         if (outcome.lines > bestClear) bestClear = outcome.lines;
         if (gain > bestGain) bestGain = gain;
       }
-      if (bestClear > 0) weights[i] *= 1.65 + Math.min(1, bestClear * 0.25);
+      if (bestClear > 0) { weights[i] *= 2.6 + Math.min(1.5, bestClear * 0.5); clearers.push({ i, lines: bestClear }); }
       else if (bestGain > 5) weights[i] *= 1.2;
       if (fits === 0) weights[i] *= 0.45;
       else if (fits <= 2) weights[i] *= 0.82;
@@ -1228,6 +1317,13 @@
     }
     if (!pool.length) pool = candidates;
     const chosen = pool[Math.floor(Math.random() * pool.length)];
+    // Clear assist: usually make sure one piece can finish a nearly-full line.
+    if (clearers.length && Math.random() < 0.8 && !chosen.ids.some(id => clearers.some(c => c.i === id))) {
+      let tot = clearers.reduce((a, c) => a + c.lines, 0), r = Math.random() * tot, pc = clearers[0];
+      for (const c of clearers) { r -= c.lines; if (r <= 0) { pc = c; break; } }
+      const trial = chosen.ids.slice(); trial[Math.floor(Math.random() * 3)] = pc.i;
+      if (findPlayableRound(trial, state) !== null) chosen.ids = trial;
+    }
     lastIds = chosen.ids.slice();
     pieces = chosen.ids.map(shapeIndex => ({
       shape: SHAPES[shapeIndex],
@@ -1284,6 +1380,7 @@
   }
 
   function clearPreview() {
+    previewKey = '';
     const cells = boardEl.children;
     for (let i = 0; i < cells.length; i++) {
       const cell = cells[i];
@@ -1295,7 +1392,9 @@
   }
 
   function showPreview(shape, color, row, col) {
-    clearPreview();
+    const key = row + ',' + col + ',' + color + shape.length;
+    if (key === previewKey) return;
+    clearPreview(); previewKey = key;
     const cells = boardEl.children;
     for (const [dr, dc] of shape) {
       const r = row + dr, c = col + dc;
@@ -1424,13 +1523,15 @@
     if (!p || p.used || (mp && !mpCanAct())) return false;
     if (!canPlace(p.shape, row, col)) return false;
 
+    const snug = snugBonus(p.shape, row, col);
     place(p.shape, p.color, row, col);
     p.used = true;
-    if (mp) netSend({ t: 'place', i: idx, r: row, c: col });
+    if (mp) { netSend({ t: 'place', i: idx, r: row, c: col }); mp.lastAct = performance.now(); }
     playPlace();
 
-    score += p.shape.length;
+    score += p.shape.length + snug;
     const { lines, points } = clearLines();
+    if (snug && lines === 0) { showFeedback('SNUG FIT +' + snug, '#a78bfa'); playGood(); }
 
     if (lines > 0) {
       combo++;
@@ -1534,6 +1635,7 @@
 
     const rect = boardEl.getBoundingClientRect();
     cellPx = (rect.width - 3 * 7) / 8;
+    boardRect = rect;
 
     const p = pieces[idx];
     const { rows, cols } = shapeBounds(p.shape);
@@ -1569,8 +1671,7 @@
     targetY = e.clientY - ghostH - LIFT;
     ghostX = targetX;
     ghostY = targetY;
-    ghost.style.left = ghostX + 'px';
-    ghost.style.top = ghostY + 'px';
+    ghost.style.transform = 'translate3d(' + ghostX + 'px,' + ghostY + 'px,0)';
 
     renderTray();
     startGhostAnim();
@@ -1582,12 +1683,14 @@
 
   function startGhostAnim() {
     if (animFrame) cancelAnimationFrame(animFrame);
-    function tick() {
+    let last = 0;
+    function tick(ts) {
       if (!dragging) return;
-      ghostX += (targetX - ghostX) * FOLLOW;
-      ghostY += (targetY - ghostY) * FOLLOW;
-      ghost.style.left = ghostX + 'px';
-      ghost.style.top = ghostY + 'px';
+      const dt = last ? Math.min(48, ts - last) : 16.67; last = ts;
+      const k = 1 - Math.pow(1 - FOLLOW, dt / 16.67); // same feel at 60/90/120 Hz
+      ghostX += (targetX - ghostX) * k;
+      ghostY += (targetY - ghostY) * k;
+      ghost.style.transform = 'translate3d(' + ghostX.toFixed(1) + 'px,' + ghostY.toFixed(1) + 'px,0)';
       if (mp) mpHold(dragIdx);
       animFrame = requestAnimationFrame(tick);
     }
@@ -1596,7 +1699,7 @@
 
   // Ghost top-left in continuous board coordinates (cell units)
   function getGhostBoardPos() {
-    const rect = boardEl.getBoundingClientRect();
+    const rect = boardRect || boardEl.getBoundingClientRect();
     const cellW = rect.width / SIZE;
     const cellH = rect.height / SIZE;
     // top-left of the floating piece
@@ -1648,7 +1751,7 @@
 
     if (snap) {
       showPreview(p.shape, p.color, snap.row, snap.col);
-      const rect = boardEl.getBoundingClientRect();
+      const rect = boardRect || boardEl.getBoundingClientRect();
       const gap = 3;
       const snapLeft = rect.left + 8 + snap.col * (cellPx + gap);
       const snapTop = rect.top + 8 + snap.row * (cellPx + gap);
@@ -1668,7 +1771,7 @@
   function onPointerUp(e) {
     if (!dragging) return;
     if (mp) mpHold(-1);
-    dragging = false;
+    dragging = false; boardRect = null;
     if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
 
     const slot = trayEl.children[dragIdx];
@@ -1740,7 +1843,12 @@
   boardEl.addEventListener('pointerleave', () => { if (!dragging) clearPreview(); });
 
   document.getElementById('btnNew').onclick = () => {
-    if (mp) { if (confirm('Leave this match?')) { mpLeave(); toast('You left the match'); } }
+    if (mp) {
+      if (mp.started && !mp.over) {
+        $('leaveText').textContent = mp.mode === 'coop' ? 'Your partner’s game will end too.' : 'You will forfeit and ' + nameOf(oppIds()[0]) + ' wins.';
+        $('leaveOverlay').classList.add('show');
+      } else { mpLeave(); toast('You left the match'); }
+    }
     else confirmOverlay.classList.add('show');
   };
   document.getElementById('btnCancelNew').onclick = () => confirmOverlay.classList.remove('show');
@@ -1763,6 +1871,22 @@
     btnSound.textContent = soundOn ? '🔊' : '🔇';
     if (soundOn) { ensureAudio(); playPlace(); }
   };
+
+  // Full screen (Android/desktop). iPhone Safari blocks it for web pages, so point to Add to Home Screen.
+  const fsEl = document.documentElement;
+  const fsOn = () => document.fullscreenElement || document.webkitFullscreenElement;
+  const fsCan = !!(fsEl.requestFullscreen || fsEl.webkitRequestFullscreen);
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+  if (standalone) document.getElementById('btnFull').style.display = 'none';
+  document.getElementById('btnFull').onclick = async () => {
+    if (!fsCan) { toast('iPhone: tap Share, then “Add to Home Screen” to play full screen'); return; }
+    try {
+      if (fsOn()) await (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      else await (fsEl.requestFullscreen || fsEl.webkitRequestFullscreen).call(fsEl, { navigationUI: 'hide' });
+    } catch (_) { toast('Full screen isn’t available here'); }
+  };
+  const fsSync = () => { document.getElementById('btnFull').textContent = fsOn() ? '🡼' : '⛶'; };
+  document.addEventListener('fullscreenchange', fsSync); document.addEventListener('webkitfullscreenchange', fsSync);
 
   btnMusic.onclick = () => {
     musicOn = !musicOn;
@@ -1806,10 +1930,11 @@
   const $ = id => document.getElementById(id);
   let mp = null, sock = null, queueSock = null, clearEpoch = 0, lastHoldAt = 0, lastIds = [], lobbyMode = '1v1';
   let pc = null, localStream = null, pendingOffer = null, iceQ = [], micOn = false;
+  let lobbyVariant = 'normal', lobbyDur = 120, rejoinCtx = null;
 
   const myName = () => ($('nameInput').value.trim() || 'Player').slice(0, 16);
   $('nameInput').value = localStorage.getItem('bbName') || '';
-  const mpCanAct = () => !!(mp && mp.started && !mp.over && !mp.out);
+  const mpCanAct = () => !!(mp && mp.started && !mp.over && !mp.out && !mp.lost);
   const netSend = m => { if (sock && sock.readyState === 1) sock.send(JSON.stringify(m)); };
   const lobbyStatus = t => { $('lobbyStatus').textContent = t || ''; };
 
@@ -1825,13 +1950,16 @@
   const oppIds = () => Object.keys(mp.players).filter(id => id !== mp.me);
   const nameOf = id => (mp && mp.players[id] && mp.players[id].name) || 'Player';
 
-  setInterval(() => { for (const s of [sock, queueSock]) if (s && s.readyState === 1) s.send('{"t":"ping"}'); }, 25000);
+  setInterval(() => { for (const s of [sock, queueSock]) if (s && s.readyState === 1) s.send('{"t":"ping"}'); }, 10000);
+  // If nothing (not even a pong) arrives for a while, the connection is dead (wifi dropped): start reconnecting.
+  setInterval(() => { if (mp && mp.me && !mp.lost && sock && sock.readyState === 1 && performance.now() - (mp.lastRx || 0) > 25000) { const s = sock; try { s.close(); } catch (_) {} connLost(s); } }, 5000);
+  window.addEventListener('online', () => { if (mp && mp.lost && mp.me) { mp.tries = 0; toast('Back online — reconnecting…'); connectRoom(); } });
 
   // ---------- lobby ----------
   $('btnOnline').onclick = () => { if (local) localEnd(); $('lobby').classList.add('show'); };
   $('btnLobbyClose').onclick = () => { $('lobby').classList.remove('show'); };
-  $('segV').onclick = () => { lobbyMode = '1v1'; $('segV').classList.add('on'); $('segC').classList.remove('on'); };
-  $('segC').onclick = () => { lobbyMode = 'coop'; $('segC').classList.add('on'); $('segV').classList.remove('on'); };
+  $('segV').onclick = () => { lobbyMode = '1v1'; $('segV').classList.add('on'); $('segC').classList.remove('on'); $('variantRow').style.display = ''; };
+  $('segC').onclick = () => { lobbyMode = 'coop'; $('segC').classList.add('on'); $('segV').classList.remove('on'); $('variantRow').style.display = 'none'; };
   $('btnCreate').onclick = () => joinRoom(randCode(), 'create', lobbyMode);
   $('btnJoin').onclick = () => {
     const code = $('codeInput').value.trim().toUpperCase();
@@ -1844,12 +1972,12 @@
     localStorage.setItem('bbName', myName());
     lobbyStatus('Searching for an opponent…');
     $('btnCancel').style.display = 'block';
-    const s = new WebSocket('wss://' + WORKER + '/mm?mode=' + lobbyMode);
+    const s = new WebSocket('wss://' + WORKER + '/mm?mode=' + lobbyMode + '&variant=' + lobbyVariant + '&dur=' + lobbyDur);
     queueSock = s;
     s.onmessage = e => {
       if (s !== queueSock) return;
       let m; try { m = JSON.parse(e.data); } catch (_) { return; }
-      if (m.t === 'match') { queueSock = null; s.close(); joinRoom(m.room, 'mm', m.mode); }
+      if (m.t === 'match') { queueSock = null; s.close(); joinRoom(m.room, 'mm', m.mode, { variant: m.variant, dur: m.dur }); }
     };
     s.onclose = () => {
       if (s !== queueSock) return;
@@ -1859,11 +1987,13 @@
   };
 
   // ---------- connection ----------
-  function joinRoom(code, kind, mode) {
+  function joinRoom(code, kind, mode, opts) {
+    opts = opts || {};
     mpLeave(true);
     localStorage.setItem('bbName', myName());
-    mp = { room: code, kind, mode, name: myName(), token: '', me: null, players: {},
-           started: false, over: false, out: false, tries: 0 };
+    mp = { room: code, kind, mode, name: myName(), token: opts.token || '', me: null, players: {},
+           started: false, over: false, out: false, tries: 0, lost: false, lastRx: performance.now(), lastAct: performance.now(),
+           variant: opts.variant || (mode === 'coop' ? 'normal' : lobbyVariant), dur: opts.dur || lobbyDur };
     $('btnCancel').style.display = 'block';
     lobbyStatus('Connecting…');
     connectRoom();
@@ -1872,26 +2002,39 @@
   function connectRoom() {
     const q = new URLSearchParams({ room: mp.room, name: mp.name, mode: mp.mode, token: mp.token });
     if (mp.kind === 'create') q.set('create', '1'); else if (mp.kind === 'mm') q.set('mm', '1');
+    if (mp.kind === 'create' || mp.kind === 'mm') { q.set('variant', mp.variant || 'normal'); q.set('dur', mp.dur || 120); }
     const s = new WebSocket('wss://' + WORKER + '/ws?' + q);
-    sock = s;
-    s.onopen = () => { if (mp && s === sock) mp.tries = 0; };
+    sock = s; mp.lastRx = performance.now();
+    s.onopen = () => { if (mp && s === sock) { mp.tries = 0; mp.lastRx = performance.now(); } };
     s.onmessage = e => {
       if (s !== sock || !mp) return;
+      mp.lastRx = performance.now();
       try { onNet(JSON.parse(e.data)); } catch (err) { console.error('net', err); }
     };
-    s.onclose = () => {
-      if (s !== sock || !mp || mp.over) return;
-      if (mp.me) retryRoom();
-      else { lobbyStatus('Could not connect to the server.'); mpLeave(true); }
-    };
+    s.onclose = () => connLost(s);
+  }
+  function connLost(s) {
+    if (s !== sock || !mp || mp.over || s._lost) return;
+    s._lost = true;
+    if (mp.me) retryRoom();
+    else if (mp.kind === 'rejoin') {
+      const sess = rejoinCtx && rejoinCtx.session;
+      mpLeave(true); toast('Could not reach the server');
+      if (sess) showRejoin({ session: sess, title: 'Rejoin your match?', text: 'Could not reach the server. Check your connection and try again.' });
+    } else { lobbyStatus('Could not connect to the server.'); mpLeave(true); }
   }
 
   function retryRoom() {
-    mp.tries++;
-    if (mp.tries > 6) { toast('Connection lost'); mpLeave(); return; }
+    mp.lost = true; mp.tries++;
+    if (dragging) onPointerUp({ clientX: -999, clientY: -999, pointerId: 0 });
+    if (mp.tries > 3) { askRejoin(); return; }
     toast('Reconnecting…');
     const m = mp;
-    setTimeout(() => { if (mp === m && !mp.over) connectRoom(); }, 900 * mp.tries);
+    setTimeout(() => { if (mp === m && !mp.over && mp.lost) connectRoom(); }, 900 * mp.tries);
+  }
+  function askRejoin() {
+    const o = mp.players[oppIds()[0]];
+    showRejoin({ title: 'Connection lost', text: 'You got disconnected' + (o ? ' from your match with ' + o.name : '') + '. Rejoin to continue right where you left off.' });
   }
 
   function mpLeave(silent) {
@@ -1904,7 +2047,7 @@
     $('mpBar').classList.remove('show');
     $('rgLayer').innerHTML = ''; $('miniWrap').querySelectorAll('.rgh').forEach(n => n.remove());
     $('chatBox').classList.remove('show'); $('chatLog').innerHTML = ''; $('btnChat').classList.remove('dot');
-    $('btnCancel').style.display = 'none';
+    $('btnCancel').style.display = 'none'; $('leaveOverlay').classList.remove('show');
     $('btnNew').textContent = 'New Game';
     $('goTitle').textContent = 'Game Over'; $('goText').textContent = 'No more moves left'; $('btnRestart').textContent = 'Play Again';
     if (had && had.started && !silent) reset();
@@ -1914,7 +2057,8 @@
   function onNet(m) {
     switch (m.t) {
       case 'hello':
-        mp.me = m.you; mp.token = m.token; mp.mode = m.mode;
+        mp.me = m.you; mp.token = m.token; mp.mode = m.mode; mp.variant = m.variant || 'normal'; mp.dur = m.dur || 120;
+        mp.lost = false; mp.tries = 0; saveSession(); $('rejoinBox').classList.remove('show');
         m.players.forEach(p => { mp.players[p.id] = mp.players[p.id] || { name: p.name, tray: [], score: 0 }; mp.players[p.id].name = p.name; });
         if (!mp.started) {
           lobbyStatus(mp.kind === 'create' ? 'Room code: ' + mp.room + ' — share it with a friend. Waiting for them to join…'
@@ -1923,11 +2067,13 @@
         break;
       case 'join': mp.players[m.id] = { name: m.name, tray: [], score: 0 }; toast(m.name + ' joined'); break;
       case 'start':
-        mp.mode = m.mode;
+        mp.mode = m.mode; mp.variant = m.variant || 'normal'; mp.dur = m.dur || 120;
+        mp.endAt = mp.variant === 'timed' ? performance.now() + mp.dur * 1000 : 0; mp.lastAct = performance.now();
         m.players.forEach(p => { mp.players[p.id] = { name: p.name, tray: [], score: 0 }; });
         mpStart(); break;
       case 'deal': mp.pendingTray = m; applyServerTray(); break;
       case 'pong': break;
+      case 'watch': mp.watchers = m.n; updateBar(); break;
       case 'tray':
         if (mp.players[m.id]) mp.players[m.id].tray = m.ids.map((s, i) => ({ shape: SHAPES[s], color: m.colors[i], used: false }));
         renderOppTray(); break;
@@ -1952,9 +2098,10 @@
       case 'back': toast(nameOf(m.id) + ' is back'); break;
       case 'resume': mpResume(m); break;
       case 'err': {
-        const e = m.e, kind = mp.kind, mode = mp.mode;
+        const e = m.e, kind = mp.kind, mode = mp.mode, vr = mp.variant, dr = mp.dur;
         if (e === 'timeout' && kind === 'mm') { mpLeave(true); lobbyMode = mode; lobbyStatus('Opponent dropped — searching again…'); $('btnQuick').click(); return; }
-        if (e === 'exists' && kind === 'create') { joinRoom(randCode(), 'create', mode); return; }
+        if (e === 'exists' && kind === 'create') { joinRoom(randCode(), 'create', mode, { variant: vr, dur: dr }); return; }
+        if (kind === 'rejoin') { clearSession(); mpLeave(true); toast('That match has already ended'); return; }
         mpLeave(true);
         lobbyStatus(e === 'noroom' ? 'Room not found — check the code.' : e === 'full' ? 'That room is full or already started.' : 'Could not join (' + e + ').');
         break;
@@ -1971,7 +2118,7 @@
     $('btnNew').textContent = 'Leave Match';
     buildBar();
     reset();
-    toast(mp.mode === 'coop' ? 'Co-op! Clear lines together' : 'Go! Highest score wins');
+    toast(mp.mode === 'coop' ? 'Co-op! Clear lines together' : mp.variant === 'timed' ? 'Go! Most points in ' + Math.round(mp.dur / 60) + ' min wins' : 'Go! First to run out of moves loses');
   }
 
   function buildBar() {
@@ -1988,7 +2135,7 @@
     const label = mp.mode === 'coop' ? 'Co-op with ' + nameOf(o) : 'vs ' + nameOf(o) + (o && mp.players[o] ? ' · ' + (mp.players[o].score || 0) : '');
     $('mpInfo').innerHTML = '<b></b><span></span>';
     $('mpInfo').firstChild.textContent = label;
-    $('mpInfo').lastChild.textContent = 'Room ' + mp.room;
+    $('mpInfo').lastChild.textContent = 'Room ' + mp.room + (mp.mode === '1v1' ? (mp.variant === 'timed' ? ' · Timed' : ' · Normal') : '') + (mp.watchers ? ' · 👁 ' + mp.watchers : '');
   }
   function miniSet(b) {
     const g = $('miniGrid').children;
@@ -2031,7 +2178,8 @@
   }
 
   function mpResume(m) {
-    mp.pendingTray = null;
+    mp.pendingTray = null; mp.lost = false; mp.tries = 0; mp.lastAct = performance.now();
+    mp.variant = m.variant || mp.variant; mp.endAt = m.left != null ? performance.now() + m.left : 0; $('rejoinBox').classList.remove('show');
     mp.started = m.phase === 'play'; mp.over = m.phase === 'over'; mp.out = !!m.out; mp.mode = m.mode;
     clearEpoch++; pendingClearAnimations = 0;
     document.body.classList.add('mp', 'mp-' + mp.mode);
@@ -2049,14 +2197,14 @@
   }
 
   function mpOver(m) {
-    mp.over = true;
+    mp.over = true; clearSession();
     Object.values(mp.players).forEach(hideGhost);
     const mine = m.sc[mp.me], o = oppIds()[0];
     let title, text;
-    if (mp.mode === 'coop') { title = 'Team finished! 🤝'; text = 'Final team score'; }
-    else if (m.w === mp.me) { title = 'You win! 🏆'; text = m.reason === 'forfeit' ? nameOf(o) + ' disconnected' : 'Beat ' + nameOf(o) + ' ' + mine + ' to ' + m.sc[o]; }
+    if (mp.mode === 'coop') { title = 'Team finished! 🤝'; text = m.reason === 'left' ? nameOf(o) + ' left the match' : 'Final team score'; }
+    else if (m.w === mp.me) { title = 'You win! 🏆'; text = m.reason === 'forfeit' ? nameOf(o) + ' left or disconnected' : m.reason === 'stuck' ? nameOf(o) + ' ran out of moves' : m.reason === 'idle' ? nameOf(o) + ' stopped placing pieces' : 'Beat ' + nameOf(o) + ' ' + mine + ' to ' + m.sc[o]; }
     else if (m.w === null) { title = 'Draw'; text = 'Both scored ' + mine; }
-    else { title = 'You lose'; text = nameOf(o) + ' won ' + m.sc[o] + ' to ' + mine; }
+    else { title = 'You lose'; text = m.reason === 'stuck' ? 'You ran out of moves' : m.reason === 'idle' ? 'You took too long to place a piece' : nameOf(o) + ' won ' + m.sc[o] + ' to ' + mine; }
     $('goTitle').textContent = title; $('goText').textContent = text; $('btnRestart').textContent = 'Back to menu';
     finalScoreEl.textContent = mine;
     playGameOver();
@@ -2071,7 +2219,7 @@
     lastHoldAt = now;
     let x = 0, y = 0;
     if (i >= 0) {
-      const r = boardEl.getBoundingClientRect();
+      const r = boardRect || boardEl.getBoundingClientRect();
       x = Math.max(-3, Math.min(11, (ghostX - r.left) / (r.width / SIZE)));
       y = Math.max(-3, Math.min(11, (ghostY - r.top) / (r.height / SIZE)));
     }
@@ -2227,6 +2375,237 @@
     const a = $('remoteAudio'); if (a) a.srcObject = null;
   }
   $('btnMic').onclick = () => { $('btnMic').classList.remove('ring'); voiceToggle(); };
+
+  // ======================= REJOIN, CLOCK, LEAVE =======================
+  const SESSION_KEY = 'bbSession';
+  function saveSession() {
+    if (!mp || !mp.me) return;
+    try { localStorage.setItem(SESSION_KEY, JSON.stringify({ room: mp.room, token: mp.token, mode: mp.mode, variant: mp.variant, dur: mp.dur, name: mp.name, t: Date.now() })); } catch (_) {}
+  }
+  function clearSession() { try { localStorage.removeItem(SESSION_KEY); } catch (_) {} }
+  const modeLabel = (mode, variant, dur) => mode === 'coop' ? 'Co-op' : variant === 'timed' ? '1v1 · Timed ' + Math.round(dur / 60) + ' min' : '1v1 · Normal';
+  function showRejoin(o) { $('rjTitle').textContent = o.title; $('rjText').textContent = o.text; rejoinCtx = o; $('rejoinBox').classList.add('show'); }
+  $('btnRejoin').onclick = () => {
+    const o = rejoinCtx; if (!o) return;
+    $('rejoinBox').classList.remove('show');
+    if (mp && mp.lost) { mp.tries = 0; toast('Reconnecting…'); connectRoom(); }
+    else if (o.session) {
+      const s = o.session; $('nameInput').value = s.name;
+      joinRoom(s.room, 'rejoin', s.mode, { token: s.token, variant: s.variant, dur: s.dur }); toast('Rejoining…');
+    }
+  };
+  $('btnRejoinLeave').onclick = () => {
+    $('rejoinBox').classList.remove('show'); clearSession(); rejoinCtx = null;
+    if (mp) { mpLeave(); toast('You left the match'); }
+  };
+  async function checkRejoin() {
+    if (mp) return;
+    let s; try { s = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch (_) {}
+    if (!s || !s.room || !s.token) return;
+    if (Date.now() - s.t > 15 * 60000) return clearSession();
+    try {
+      const ctl = new AbortController(); setTimeout(() => ctl.abort(), 7000);
+      const r = await fetch('https://' + WORKER + '/peek?room=' + encodeURIComponent(s.room) + '&token=' + encodeURIComponent(s.token), { signal: ctl.signal, cache: 'no-store' });
+      const j = await r.json();
+      if (!j.alive) return clearSession();
+      if (mp) return;
+      const who = j.mode === 'coop' ? 'partner' : 'opponent';
+      showRejoin({ session: s, title: 'Rejoin your match?',
+        text: (j.opp ? 'Your ' + who + ' ' + j.opp + (j.oppConn ? ' is still in the match.' : ' is also disconnected right now.') : 'Your match is still open.') + ' ' + modeLabel(j.mode, j.variant, j.dur) + '.' });
+    } catch (_) {}
+  }
+  setTimeout(checkRejoin, 1200);
+
+  $('btnLeaveStay').onclick = () => $('leaveOverlay').classList.remove('show');
+  $('btnLeaveYes').onclick = () => { $('leaveOverlay').classList.remove('show'); netSend({ t: 'leave' }); clearSession(); mpLeave(); toast('You left the match'); };
+
+  // Countdown (timed mode) and idle warning (normal 1v1)
+  const fmtClock = s => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  setInterval(() => {
+    let txt = '', warn = false;
+    const now = performance.now();
+    if (mp && mp.started && !mp.over) {
+      if (mp.variant === 'timed' && mp.endAt) { const s = Math.max(0, Math.ceil((mp.endAt - now) / 1000)); txt = '⏱ ' + fmtClock(s); warn = s <= 10; }
+      else if (mp.mode === '1v1' && mp.variant !== 'timed' && !mp.out && !mp.lost) {
+        const idle = (now - (mp.lastAct || now)) / 1000;
+        if (idle >= 18) { txt = '⚠ Place a piece! ' + Math.max(0, Math.ceil(30 - idle)) + 's'; warn = true; }
+      }
+    }
+    const el = $('mpClock'); el.textContent = txt; el.className = warn ? 'warn' : '';
+    if (spec && spec.variant === 'timed' && spec.endAt && !spec.over) {
+      const s = Math.max(0, Math.ceil((spec.endAt - now) / 1000)); $('spClock').textContent = '⏱ ' + fmtClock(s); $('spClock').className = s <= 10 ? 'warn' : '';
+    } else if (spec) $('spClock').textContent = '';
+  }, 250);
+
+  // Game type selector
+  function setVariant(v) {
+    lobbyVariant = v;
+    $('vgN').classList.toggle('on', v === 'normal'); $('vgT').classList.toggle('on', v === 'timed');
+    $('durRow').style.display = v === 'timed' ? 'flex' : 'none';
+    $('variantHint').textContent = v === 'timed' ? 'Get the most points before the clock runs out.' : 'First to run out of moves loses. Keep placing pieces: idle for 30s and you lose!';
+  }
+  $('vgN').onclick = () => setVariant('normal'); $('vgT').onclick = () => setVariant('timed');
+  document.querySelectorAll('#durRow button').forEach(b => b.onclick = () => {
+    lobbyDur = +b.dataset.d; document.querySelectorAll('#durRow button').forEach(x => x.classList.toggle('on', x === b));
+  });
+
+  // ======================= SPECTATE =======================
+  let spec = null;
+  $('btnWatch').onclick = () => { $('lobby').classList.remove('show'); $('watchOverlay').classList.add('show'); $('watchStatus').textContent = ''; loadLive(); };
+  $('btnWatchClose').onclick = () => $('watchOverlay').classList.remove('show');
+  $('btnWatchRefresh').onclick = () => loadLive();
+  $('btnWatchCode').onclick = () => {
+    const c = $('watchCode').value.trim().toUpperCase();
+    if (!/^[A-Z0-9]{4,8}$/.test(c)) { $('watchStatus').textContent = 'Enter the room code.'; return; }
+    startSpec(c);
+  };
+  async function loadLive() {
+    const box = $('liveList'); box.textContent = 'Loading…';
+    try {
+      const j = await (await fetch('https://' + WORKER + '/live', { cache: 'no-store' })).json();
+      box.innerHTML = '';
+      if (!j.live.length) { box.textContent = 'No public matches are live right now. You can also watch a private room with its code.'; return; }
+      for (const g of j.live) {
+        const b = document.createElement('button'); b.textContent = g.names.join(' vs ') + ' · ' + modeLabel(g.mode, g.variant, g.dur);
+        b.onclick = () => startSpec(g.code); box.appendChild(b);
+      }
+    } catch (_) { box.textContent = 'Could not load matches.'; }
+  }
+  setInterval(() => { if (spec && spec.sock && spec.sock.readyState === 1) spec.sock.send('{"t":"ping"}'); }, 10000);
+
+  function startSpec(code) {
+    stopSpec(true);
+    if (mp) mpLeave(true);
+    $('watchOverlay').classList.remove('show'); $('lobby').classList.remove('show');
+    spec = { code, players: {}, mode: '1v1', variant: 'normal', endAt: 0, tries: 0, over: false, gotInit: false, err: false };
+    $('spTitle').textContent = 'Room ' + code; $('spBoards').innerHTML = ''; $('spWatch').textContent = '';
+    $('spStatus').textContent = 'Connecting…'; $('specView').classList.add('show');
+    connectSpec();
+  }
+  function connectSpec() {
+    const s = new WebSocket('wss://' + WORKER + '/ws?room=' + spec.code + '&spec=1'); spec.sock = s;
+    s.onmessage = e => { if (spec && s === spec.sock) { try { specNet(JSON.parse(e.data)); } catch (err) { console.error(err); } } };
+    s.onclose = () => {
+      if (!spec || s !== spec.sock || spec.over || spec.err) return;
+      if (spec.tries++ < 4) { $('spStatus').textContent = 'Reconnecting…'; setTimeout(() => { if (spec && s === spec.sock) connectSpec(); }, 1200); }
+      else $('spStatus').textContent = 'Lost connection to the match.';
+    };
+  }
+  function stopSpec(keepView) {
+    if (!spec) return;
+    const s = spec.sock; spec = null; try { s && s.close(); } catch (_) {}
+    if (!keepView) $('specView').classList.remove('show');
+  }
+  $('btnSpecStop').onclick = () => { stopSpec(); $('watchOverlay').classList.add('show'); loadLive(); };
+
+  function mkCard() {
+    const card = document.createElement('div'); card.className = 'spcard';
+    const hd = document.createElement('div'); hd.className = 'sph'; const nm = document.createElement('b'), sc = document.createElement('span'); sc.textContent = '0'; hd.append(nm, sc);
+    const box = document.createElement('div'); box.className = 'sbox'; const w = document.createElement('div'); w.className = 'mgw';
+    const g = document.createElement('div'); g.className = 'mg'; for (let i = 0; i < 64; i++) g.appendChild(document.createElement('i'));
+    w.appendChild(g); box.appendChild(w); card.append(hd, box);
+    return { card, nm, sc, w, g };
+  }
+  function specPaint(g, b) {
+    const cs = g.children;
+    for (let i = 0; i < 64; i++) {
+      const was = cs[i].style.background; cs[i].style.background = b[i] || '';
+      if (b[i] && !was) { cs[i].classList.remove('pop'); void cs[i].offsetWidth; cs[i].classList.add('pop'); }
+    }
+  }
+  function specBuild(players, mode) {
+    spec.mode = mode; spec.players = {}; spec.card = null;
+    const wrap = $('spBoards'); wrap.innerHTML = ''; wrap.className = mode === 'coop' ? 'one' : '';
+    if (mode === 'coop') { spec.card = mkCard(); spec.card.nm.textContent = players.map(p => p.name).join(' & '); wrap.appendChild(spec.card.card); }
+    for (const p of players) {
+      const o = spec.players[p.id] = { name: p.name, holdI: -1, score: p.st ? p.st.sc : 0,
+        tray: (p.tray || []).map(t => ({ shape: SHAPES[t.s], color: t.color, used: t.used })) };
+      o.strip = document.createElement('div'); o.strip.className = 'otray';
+      if (mode === 'coop') { spec.card.card.appendChild(o.strip); }
+      else { o.card = mkCard(); o.card.nm.textContent = p.name; o.card.card.appendChild(o.strip); wrap.appendChild(o.card.card); }
+      specTray(o);
+      if (p.st && o.card) { o.card.sc.textContent = p.st.sc; specPaint(o.card.g, p.st.b); }
+    }
+  }
+  function specTray(p) {
+    p.strip.innerHTML = '';
+    const lab = document.createElement('span'); lab.textContent = p.name; if (spec.mode === 'coop') p.strip.appendChild(lab);
+    p.tray.forEach((t, i) => {
+      const d = document.createElement('div'); d.className = 'ot' + (t.used ? ' used' : '') + (p.holdI === i && !t.used ? ' held' : '');
+      if (!t.used) {
+        const { rows, cols } = shapeBounds(t.shape), g = document.createElement('div');
+        g.className = 'og'; g.style.gridTemplateColumns = 'repeat(' + cols + ',5px)';
+        const occ = new Set(t.shape.map(([r, c]) => r + ',' + c));
+        for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) { const x = document.createElement('i'); x.style.background = occ.has(r + ',' + c) ? t.color : 'transparent'; g.appendChild(x); }
+        d.appendChild(g);
+      }
+      p.strip.appendChild(d);
+    });
+  }
+  function specHide(p) { clearTimeout(p.ghT); if (p.gh) { p.gh.style.display = 'none'; p.gh.classList.remove('drop'); } p.holdI = -1; specTray(p); }
+  function specDrop(p, r, c) {
+    if (!p.gh || p.gh.style.display !== 'grid') { specHide(p); return; }
+    clearTimeout(p.ghT); p.gh.classList.add('drop'); p.gh.style.left = c * 12.5 + '%'; p.gh.style.top = r * 12.5 + '%';
+    p.ghT = setTimeout(() => specHide(p), 170);
+  }
+  function specHold(m) {
+    const p = spec.players[m.id]; if (!p) return;
+    const t = p.tray[m.i];
+    if (m.i < 0 || !t || t.used) { p.holdI = -1; specTray(p); clearTimeout(p.ghT); p.ghT = setTimeout(() => specHide(p), 260); return; }
+    if (p.holdI !== m.i) { p.holdI = m.i; specTray(p); }
+    const host = spec.mode === 'coop' ? spec.card.w : p.card.w;
+    if (!p.gh || p.gh.parentNode !== host) { p.gh = document.createElement('div'); p.gh.className = 'rgh'; host.appendChild(p.gh); p.ghKey = ''; }
+    const key = m.i + t.color + JSON.stringify(t.shape);
+    if (p.ghKey !== key) {
+      p.ghKey = key; p.gh.innerHTML = '';
+      const { rows, cols } = shapeBounds(t.shape);
+      p.gh.style.gridTemplateColumns = 'repeat(' + cols + ',1fr)'; p.gh.style.gridTemplateRows = 'repeat(' + rows + ',1fr)';
+      p.gh.style.width = cols * 12.5 + '%'; p.gh.style.height = rows * 12.5 + '%';
+      const occ = new Set(t.shape.map(([r, c]) => r + ',' + c));
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) { const d = document.createElement('i'); if (occ.has(r + ',' + c)) d.style.background = t.color; p.gh.appendChild(d); }
+    }
+    p.gh.classList.remove('drop'); p.gh.style.display = 'grid';
+    p.gh.style.left = m.x * 12.5 + '%'; p.gh.style.top = m.y * 12.5 + '%';
+    clearTimeout(p.ghT); p.ghT = setTimeout(() => specHide(p), 1500);
+  }
+  function specNet(m) {
+    const st = t => { $('spStatus').textContent = t; };
+    const nm = id => (spec.players[id] && spec.players[id].name) || 'Player';
+    switch (m.t) {
+      case 'err': spec.err = true; st(m.e === 'noroom' ? 'Room not found. Check the code.' : 'Could not watch this match (' + m.e + ').'); break;
+      case 'specinit':
+        spec.gotInit = true; spec.tries = 0; spec.variant = m.variant; spec.dur = m.dur;
+        spec.endAt = m.left != null ? performance.now() + m.left : 0;
+        specBuild(m.players, m.mode);
+        if (m.mode === 'coop' && m.sh) { specPaint(spec.card.g, m.sh.b); spec.card.sc.textContent = m.sh.sc; }
+        $('spTitle').textContent = modeLabel(m.mode, m.variant, m.dur) + ' · ' + m.players.map(p => p.name).join(' vs ');
+        st(m.phase === 'play' ? '🔴 Live' : m.phase === 'over' ? 'This match has finished.' : 'Waiting for the match to start…');
+        break;
+      case 'start':
+        spec.variant = m.variant; spec.dur = m.dur; spec.endAt = m.variant === 'timed' ? performance.now() + m.dur * 1000 : 0;
+        specBuild(m.players.map(p => ({ id: p.id, name: p.name })), m.mode);
+        $('spTitle').textContent = modeLabel(m.mode, m.variant, m.dur) + ' · ' + m.players.map(p => p.name).join(' vs ');
+        st('🔴 Live'); break;
+      case 'tray': { const p = spec.players[m.id]; if (p) { p.tray = m.ids.map((s, i) => ({ shape: SHAPES[s], color: m.colors[i], used: false })); specTray(p); } break; }
+      case 'placed': { const p = spec.players[m.id], t = p && p.tray[m.i]; if (t) { t.used = true; specDrop(p, m.r, m.c); specTray(p); } break; }
+      case 'st':
+        if (m.sh && spec.card) { specPaint(spec.card.g, m.sh.b); spec.card.sc.textContent = m.sh.sc; }
+        else if (m.s) for (const id in m.s) { const p = spec.players[id]; if (p && p.card) { specPaint(p.card.g, m.s[id].b); p.card.sc.textContent = m.s[id].sc; } }
+        break;
+      case 'hold': specHold(m); break;
+      case 'out': st(nm(m.id) + ' is out of moves'); break;
+      case 'left': st(nm(m.id) + ' disconnected'); break;
+      case 'back': st(nm(m.id) + ' is back'); break;
+      case 'watch': $('spWatch').textContent = '👁 ' + m.n; break;
+      case 'over': {
+        spec.over = true; Object.values(spec.players).forEach(specHide);
+        const why = { stuck: 'ran out of moves', idle: 'stopped placing pieces', forfeit: 'left the match', time: "time's up", left: 'left the match' }[m.reason] || '';
+        if (spec.mode === 'coop') st('Team finished with ' + Object.values(m.sc)[0] + ' points' + (why ? ' (' + why + ')' : ''));
+        else st(m.w ? nm(m.w) + ' wins! ' + Object.entries(m.sc).map(([id, v]) => nm(id) + ' ' + v).join(' – ') + (why ? ' (' + why + ')' : '') : 'Draw: ' + Object.values(m.sc)[0]);
+        break;
+      }
+    }
+  }
 
   // ======================= LOCAL 2-PLAYER (one device) =======================
   let localMode = '1v1';
