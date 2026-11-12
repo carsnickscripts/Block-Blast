@@ -121,10 +121,11 @@
     position: relative;
   }
   .cell.filled {
-    border-radius: 4px;
+    border-radius: 25%;
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.2), 0 2px 5px rgba(0,0,0,0.28);
   }
   .cell.preview {
+    border-radius: 25%;
     opacity: 0.7;
     box-shadow: 0 0 0 2px rgba(255,255,255,0.25);
     animation: previewPulse 0.8s ease-in-out infinite;
@@ -199,7 +200,7 @@
   }
 
   .piece-grid { display: grid; gap: 2px; pointer-events: none; }
-  .piece-cell { width: 16px; height: 16px; border-radius: 3px; }
+  .piece-cell { width: 16px; height: 16px; border-radius: 25%; }
 
   .controls {
     margin-top: 14px;
@@ -295,7 +296,7 @@
   #ghost.holding .piece-grid { animation: holdScale 0.95s ease-in-out infinite; }
   @keyframes holdScale { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
   #ghost .piece-grid { gap: 3px; }
-  #ghost .piece-cell { border-radius: 4px; }
+  #ghost .piece-cell { border-radius: 25%; }
 
   .vol-row {
     margin-top: 12px;
@@ -365,11 +366,17 @@
   .mini { position: relative; width: 84px; height: 84px; padding: 4px; background: var(--board-bg); border-radius: 8px; flex: none; }
   .mgw { position: relative; width: 100%; height: 100%; }
   .mg { display: grid; grid-template-columns: repeat(8, 1fr); gap: 1px; width: 100%; height: 100%; }
-  .mg i { background: var(--cell); border-radius: 1px; }
-  .rgh { position: absolute; display: none; pointer-events: none; opacity: .82; z-index: 20;
-    transition: left .06s linear, top .06s linear; filter: drop-shadow(0 4px 8px rgba(0,0,0,.5)); }
-  .rgh i { margin: 1px; border-radius: 2px; }
-  .mini .rgh i { margin: 0; border-radius: 1px; }
+  .mg i { background: var(--cell); border-radius: 25%; }
+  .rgh { position: absolute; display: none; pointer-events: none; opacity: 1; z-index: 20;
+    transition: left .06s linear, top .06s linear; }
+  /* Match the live board: cells sit flush in the grid with softly rounded corners. */
+  .rgh i { margin: 0; border-radius: 25%; }
+  .mg i.filled, .rgh i.filled {
+    border-radius: 25%;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 1px 2px rgba(0,0,0,.14);
+  }
+  .mini .mg i.filled, .mini .rgh i.filled { border-radius: 25%; box-shadow: inset 0 1px 0 rgba(255,255,255,.12); }
+  .mini .rgh i { margin: 0; }
   #rgLayer { position: absolute; left: 8px; top: 8px; right: 8px; bottom: 8px; pointer-events: none; z-index: 20; }
   .icon-btn.on { background: #14532d; }
   .icon-btn.muted { background: #7f1d1d; }
@@ -441,7 +448,7 @@
   .sph b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sph span { color: #fbbf24; font-weight: 700; }
   .sbox { position: relative; width: 100%; aspect-ratio: 1; padding: 5px; background: var(--board-bg); border-radius: 10px; }
-  .sbox .rgh i { margin: 0; border-radius: 1px; }
+  .sbox .rgh i { margin: 0; border-radius: 25%; }
   .otray { display: flex; gap: 6px; margin-top: 8px; min-height: 30px; align-items: center; font-size: .72rem; color: var(--muted); }
   .otray .ot { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 6px; background: #1a1a26; transition: transform .12s, opacity .2s; }
   .otray .ot.used { opacity: .15; }
@@ -2142,6 +2149,7 @@
     for (let i = 0; i < 64; i++) {
       const was = g[i].style.background;
       g[i].style.background = b[i] || '';
+      g[i].classList.toggle('filled', !!b[i]);
       if (b[i] && !was) { g[i].classList.remove('pop'); void g[i].offsetWidth; g[i].classList.add('pop'); }
     }
   }
@@ -2278,7 +2286,7 @@
       const occ = new Set(t.shape.map(([r, c]) => r + ',' + c));
       for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
         const d = document.createElement('i');
-        if (occ.has(r + ',' + c)) d.style.background = t.color;
+        if (occ.has(r + ',' + c)) { d.style.background = t.color; d.classList.add('filled'); }
         p.gh.appendChild(d);
       }
     }
@@ -2510,6 +2518,7 @@
     const cs = g.children;
     for (let i = 0; i < 64; i++) {
       const was = cs[i].style.background; cs[i].style.background = b[i] || '';
+      cs[i].classList.toggle('filled', !!b[i]);
       if (b[i] && !was) { cs[i].classList.remove('pop'); void cs[i].offsetWidth; cs[i].classList.add('pop'); }
     }
   }
@@ -2562,7 +2571,7 @@
       p.gh.style.gridTemplateColumns = 'repeat(' + cols + ',1fr)'; p.gh.style.gridTemplateRows = 'repeat(' + rows + ',1fr)';
       p.gh.style.width = cols * 12.5 + '%'; p.gh.style.height = rows * 12.5 + '%';
       const occ = new Set(t.shape.map(([r, c]) => r + ',' + c));
-      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) { const d = document.createElement('i'); if (occ.has(r + ',' + c)) d.style.background = t.color; p.gh.appendChild(d); }
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) { const d = document.createElement('i'); if (occ.has(r + ',' + c)) { d.style.background = t.color; d.classList.add('filled'); } p.gh.appendChild(d); }
     }
     p.gh.classList.remove('drop'); p.gh.style.display = 'grid';
     p.gh.style.left = m.x * 12.5 + '%'; p.gh.style.top = m.y * 12.5 + '%';
