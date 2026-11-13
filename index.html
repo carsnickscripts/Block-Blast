@@ -373,9 +373,10 @@
   .rgh i { margin: 0; border-radius: 25%; }
   .mg i.filled, .rgh i.filled {
     border-radius: 25%;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 1px 2px rgba(0,0,0,.14);
+    box-shadow: none;
+    filter: saturate(1.08) brightness(1.08);
   }
-  .mini .mg i.filled, .mini .rgh i.filled { border-radius: 25%; box-shadow: inset 0 1px 0 rgba(255,255,255,.12); }
+  .mini .mg i.filled, .mini .rgh i.filled { border-radius: 25%; box-shadow: none; }
   .mini .rgh i { margin: 0; }
   #rgLayer { position: absolute; left: 8px; top: 8px; right: 8px; bottom: 8px; pointer-events: none; z-index: 20; }
   .icon-btn.on { background: #14532d; }
@@ -2268,6 +2269,25 @@
       box.appendChild(d);
     });
   }
+  function positionRemoteGhost(el, host, x, y, gap) {
+    const w = host.clientWidth, h = host.clientHeight;
+    const cellW = (w - 7 * gap) / SIZE;
+    const cellH = (h - 7 * gap) / SIZE;
+    const left = x * (cellW + gap), top = y * (cellH + gap);
+    const cols = Math.max(1, el.querySelectorAll('i').length);
+    const gridCols = el.style.gridTemplateColumns.match(/repeat\((\d+)/);
+    const gridRows = el.style.gridTemplateRows.match(/repeat\((\d+)/);
+    const countCols = gridCols ? +gridCols[1] : 1;
+    const countRows = gridRows ? +gridRows[1] : 1;
+    el.style.left = left + 'px';
+    el.style.top = top + 'px';
+    el.style.width = (countCols * cellW + (countCols - 1) * gap) + 'px';
+    el.style.height = (countRows * cellH + (countRows - 1) * gap) + 'px';
+    el.style.gap = gap + 'px';
+    el.style.gridTemplateColumns = `repeat(${countCols}, ${cellW}px)`;
+    el.style.gridTemplateRows = `repeat(${countRows}, ${cellH}px)`;
+  }
+
   function remoteHold(m) {
     const p = mp.players[m.id];
     if (!p || m.id === mp.me) return;
@@ -2291,7 +2311,7 @@
       }
     }
     p.gh.classList.remove('drop'); p.gh.style.display = 'grid';
-    p.gh.style.left = m.x * 12.5 + '%'; p.gh.style.top = m.y * 12.5 + '%';
+    positionRemoteGhost(p.gh, host, m.x, m.y, mp.mode === 'coop' ? 3 : 1);
     clearTimeout(p.ghT); p.ghT = setTimeout(() => hideGhost(p), 1500);
   }
 
@@ -2574,7 +2594,7 @@
       for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) { const d = document.createElement('i'); if (occ.has(r + ',' + c)) { d.style.background = t.color; d.classList.add('filled'); } p.gh.appendChild(d); }
     }
     p.gh.classList.remove('drop'); p.gh.style.display = 'grid';
-    p.gh.style.left = m.x * 12.5 + '%'; p.gh.style.top = m.y * 12.5 + '%';
+    positionRemoteGhost(p.gh, host, m.x, m.y, 1);
     clearTimeout(p.ghT); p.ghT = setTimeout(() => specHide(p), 1500);
   }
   function specNet(m) {
